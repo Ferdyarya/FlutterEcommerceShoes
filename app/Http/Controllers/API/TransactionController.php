@@ -4,13 +4,15 @@ namespace App\Http\Controllers\API;
 
 use App\Models\Transaction;
 use Illuminate\Http\Request;
+use App\Models\TransactionItem;
 use App\Helpers\ResponseFormatter;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 
 class TransactionController extends Controller
 {
-    public function all(Request $request){
+    public function all(Request $request)
+    {
         $id = $request->input('id');
         $limit = $request->input('limit', 6);
         $status =$request->input('status');
@@ -43,5 +45,36 @@ class TransactionController extends Controller
             $transaction->paginate($limit),
             'Data transaksi berhasil diambil '
         );
+    }
+
+    public function checkout(Request $request)
+    {
+        $request->validate([
+            'items' => 'required|array',
+            'items.*.id' => 'exists:product,id',
+            'total_price' => 'required',
+            'shipping_price' => 'required',
+            'status' => 'required|in:PENDING,SUCCESS,CANCELED,FAILED,SHIPPING,SHIPPED',
+        ]);
+
+        $transaction = Transaction::create([
+            'users_id' => Auth::user()->id,
+            'address' => $request->address,
+            'total_price' => $request->total_price,
+            'shipping_price' => $request->shipping_price,
+            'status' => $request->status,
+        ]);
+
+        foreach ($request->item as $key => $product) {
+            TransactionItem::create([
+                'users_id' => Auth::user()->id,
+                'product_id' => $product['id'],
+                'transaction_id' => $transaction['id'],
+                'quantity' => $product['quantitity'],
+            ]);
+        }
+
+        return ResponseFormatter::success($transaction->load('items.product'), 'Transaksi Berhasil');
+
     }
 }
